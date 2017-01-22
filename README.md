@@ -16,8 +16,8 @@ The goals / steps of this project are the following:
 [image1]: ./figures/fig1_undistort.png "Original and Undistorted images"
 [image2]: ./figures/fig2_warp_options.png "Warp options"
 [image3]: ./figures/fig3_edges.png "Thresholded Image"
-[image4]: ./examples/warped_straight_lines.jpg "Warp Example"
-[image5]: ./examples/color_fit_lines.jpg "Fit Visual"
+[image4]: ./figures/fig4_perspective.png "Warp Example"
+[image5]: ./figures/fig5_histogram.png "Histogram"
 [image6]: ./examples/example_output.jpg "Output"
 [video1]: ./project_video.mp4 "Video"
 [laplacian]: http://www.eng.utah.edu/~hamburge/Road_Marking_Features_and_Processing_Steps.pdf "Road Marking Features and Processing"
@@ -25,6 +25,7 @@ The goals / steps of this project are the following:
 [ref2]: https://pdfs.semanticscholar.org/2bce/94e1f0d921d6876cf346103f5f3e121bfdd8.pdf "Gradient-Enhancing Conversion for
 Illumination-Robust Lane Detection"
 
+[project1]: https://github.com/thomasantony/CarND-P01-Lane-Lines "Project 01 - Lane lines"
 <!-- "Gradient-Enhancing Conversion for
 Illumination-Robust Lane Detection, Hunjae Yoo, Ukil Yang, and Kwanghoon Sohn, IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS 1" -->
 
@@ -43,7 +44,7 @@ For each calibration image, the image coordinates (x,y), of the chessboard corne
 
 The two accumulated lists, `imgpoints` and `objpoints` are then passed into `cv2.calibrateCamera` to obtain the camera calibration and distortion coefficients. The input image is then undistorted (later in the image processing pipeline on line 409) using these coefficients and the `cv2.undistort` function. An example result is shown below:
 
-![alt text][image1]
+![Distortion Correction][image1]
 
 ## Pipeline (single images)
 
@@ -85,45 +86,42 @@ The second thresholded mask, `mask_two`, is created using a simple threshold on 
 
 The results obtained using the edge detection algorithm for an image is shown below:
 
-![alt text][image3]
+![Thresholding Example][image3]
 
 #### 3. Perspective transform
 
-The perspective transformation is computed using the functions `find_perspective_points` and `get_perspective_transform` in lines 52-147 of `project04.py`.
+The perspective transformation is computed using the functions `find_perspective_points` and `get_perspective_transform` in lines 52-147 of `project04.py`. `find_perspective_points` uses the method from [Project 1](project1) to detect lane lines. Since the lanes are approximated as lines, it can be used to extract four points that are actually on the road which can then be used as the "source" points for a perspective transform.
 
-The code for my perspective transform includes a function called `warper()`, which appears in lines 1 through 8 in the file `example.py` (output_images/examples/example.py) (or, for example, in the 3rd code cell of the IPython notebook).  The `warper()` function takes as inputs an image (`img`), as well as source (`src`) and destination (`dst`) points.  I chose the hardcode the source and destination points in the following manner:
+Here is a brief description of how ths works:
 
-```
-src = np.float32(
-    [[(img_size[0] / 2) - 55, img_size[1] / 2 + 100],
-    [((img_size[0] / 6) - 10), img_size[1]],
-    [(img_size[0] * 5 / 6) + 60, img_size[1]],
-    [(img_size[0] / 2 + 55), img_size[1] / 2 + 100]])
-dst = np.float32(
-    [[(img_size[0] / 4), 0],
-    [(img_size[0] / 4), img_size[1]],
-    [(img_size[0] * 3 / 4), img_size[1]],
-    [(img_size[0] * 3 / 4), 0]])
+1. Perform thresholding/edge detection on the input image
+2. Mask out the upper 60% of pixels to remove any distracting features
+3. Use Hough transforms to detect the left and right lane markers
+4. Find the apex-point where the two lines intersect. Choose a point a little below that point to form a trapezoid with four points -- two base points of lane markers + upper points of trapezoid
+5. Pass these points along with a hardcoded set of destination points to `cv2.getPerspectiveTransform` to compute the perspective transformation matrix
 
-```
-This resulted in the following source and destination points:
+*Note: In case the hough transform fails to detect the lane markers, a hardcoded set of source points are used*
 
-| Source        | Destination   |
-|:-------------:|:-------------:|
-| 585, 460      | 320, 0        |
-| 203, 720      | 320, 720      |
-| 1127, 720     | 960, 720      |
-| 695, 460      | 960, 0        |
+The following image shows the original and warped images along with the source points (computed dynamically) and destination points used to computed the perspective transform.
 
-I verified that my perspective transform was working as expected by drawing the `src` and `dst` points onto a test image and its warped counterpart to verify that the lines appear parallel in the warped image.
+![Perspective Transform Example][image4]
 
-![alt text][image4]
+#### 4. Lane Detection
 
-####4. Describe how (and identify where in your code) you identified lane-line pixels and fit their positions with a polynomial?
+The lane detection was primarily performed using two methods -- histogram method and masking method. The latter only works when we have some prior knowledge about the location of the lane lines. A sanity check based on the radius of curvature of the lanes is used to assess the results of lane detection. If two many frames fail the sanity check, the algorithm reverts to the histogram method until the lane is detected again.
 
-Then I did some other stuff and fit my lane lines with a 2nd order polynomial kinda like this:
+**(a) Histogram Method**
 
-![alt text][image5]
+The first step in this method is to compute the base points of the lanes. This is done in the `fine_base_points` function in lines 352-366 of `project04.py`. The first step is to compute a histogram of the lower half of the thresholded image. The histogram corresponding to the thresholded, warped image in the previous section is shown below:
+
+![Histogram Plot][image5]
+
+The `find_peaks_cwt` function from the `scipy.signal` is used to identify the peaks in the histogram. The indices thus obtained are further filtered to reject any below a certain minimum value as well as any peaks very close to the edges of the image. For the histogram shown above, the base points for the lanes are found to be at the points `297` and `1000`.
+
+**(b) Masking Method**
+
+Bar
+
 
 ####5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
 
@@ -149,4 +147,5 @@ Here's a [link to my video result](./project_video.mp4)
 
 ####1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
+Use euler spirals/clothoids
 Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  

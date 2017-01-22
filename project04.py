@@ -124,7 +124,6 @@ def find_perspective_points(image):
         # Failed to find two lane markers
         return None
 
-
     p_left  = np.polyfit(lane_markers_y[0], lane_markers_x[0], 1)
     p_right = np.polyfit(lane_markers_y[1], lane_markers_x[1], 1)
 
@@ -185,11 +184,6 @@ class Lane():
         self.recent_xfitted = collections.deque(maxlen=cache_length)
         self.recent_yfitted = collections.deque(maxlen=cache_length)
 
-        #average x values of the fitted line over the last n iterations
-        self.bestx = None
-
-        #polynomial coefficients averaged over the last n iterations
-        self.best_fit = None
         #polynomial coefficients for the most recent fit
         self.current_fit = [np.array([False])]
         #radius of curvature of the line in some units
@@ -197,16 +191,13 @@ class Lane():
         #distance in meters of vehicle center from the line
         self.insanity = 0.0
 
-        #difference in fit coefficients between last and new fits
-        self.diffs = np.array([0,0,0], dtype='float')
         #x values for detected line pixels
         self.allx = None
         #y values for detected line pixels
         self.ally = None
 
         self.current_xfit = None
-        self.roi_mask = None
-
+        
         self.img_size = img_size
         self.base_pt = base_pt
 
@@ -229,11 +220,6 @@ class Lane():
         x_hist = np.fromiter(chain(w_x, x), np.int32)
         y_hist = np.fromiter(chain(w_y, y), np.int32)
 
-#         x2_hist = np.fromiter(chain(*self.recent_xfitted, x), np.int32)
-#         y2_hist = np.fromiter(chain(*self.recent_yfitted, y), np.int32)
-#         print(id(self), weights, x_hist[:10], x2_hist[:10])
-#         plt.plot(x_hist, y_hist)
-#         plt.imshow(image)
         try:
             p_lane = np.polyfit(y_hist, x_hist, 2)
             rad_curv = self.compute_rad_curv(x_hist, y_hist)
@@ -253,8 +239,6 @@ class Lane():
 
             self.recent_xfitted.append(x_fit)
             self.recent_yfitted.append(self.yvals)
-            if len(self.current_fit) > 1:
-                self.diffs = self.current_fit - p_lane
 
             self.radius_of_curvature = rad_curv
             self.current_fit = p_lane
