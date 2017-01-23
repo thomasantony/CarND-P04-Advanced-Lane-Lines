@@ -140,13 +140,13 @@ An example image that was run through the pipeline is shown below:
 
 **Project video output**
 
-[![Project video output](https://img.youtube.com/vi/eDM08Wp21ng/0.jpg)](https://youtu.be/eDM08Wp21ng)
+[![Project video output](https://img.youtube.com/vi/nuaE2jed1nk/0.jpg)](https://youtu.be/nuaE2jed1nk)
 
 This same video can also be found at:  [project_video_out.mp4](./output/project_video_out.mp4)
 
 **Challenge video output**
 
-[![Challenge video output](https://img.youtube.com/vi/VM6lMkD-xf4/0.jpg)](https://youtu.be/VM6lMkD-xf4)
+[![Challenge video output](https://img.youtube.com/vi/lUMt_7LEP24/0.jpg)](https://youtu.be/lUMt_7LEP24)
 
 The lanes in the harder challenge video were found to be very difficult to track with this pipeline. The algorithm has to be improved and made more robust for that video.
 
