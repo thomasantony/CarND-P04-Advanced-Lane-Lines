@@ -1,25 +1,4 @@
 # Project 04 - Advanced Lane Finding
----
-[//]: # (References)
-
-[image1]: ./figures/fig1_undistort.png "Original and Undistorted images"
-[image2]: ./figures/fig2_warp_options.png "Warp options"
-[image3]: ./figures/fig3_edges.png "Thresholded Image"
-[image4]: ./figures/fig4_perspective.png "Warp Example"
-[image5]: ./figures/fig5_hist.png "Histogram"
-[image6]: ./figures/fig6_masks.png "Lane masks"
-[image7]: ./figures/fig7_result.png "Output"
-[video1]: ./project_video_out.mp4 "Project video output"
-[video2]: ./challenge_video_out2.mp4 "Challenge video output"
-
-[laplacian]: http://www.eng.utah.edu/~hamburge/Road_Marking_Features_and_Processing_Steps.pdf "Road Marking Features and Processing"
-
-[ref2]: https://pdfs.semanticscholar.org/2bce/94e1f0d921d6876cf346103f5f3e121bfdd8.pdf "Reference 2"
-
-[project1]: https://github.com/thomasantony/CarND-P01-Lane-Lines "Project 01 - Lane lines"
-<!-- "Gradient-Enhancing Conversion for
-Illumination-Robust Lane Detection, Hunjae Yoo, Ukil Yang, and Kwanghoon Sohn, IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS 1" -->
-
 ## README
 
 The code I used for doing this project can be found in `project04.py` and `Project04.ipynb`. All the line numbers I refer to in this document is for `project04.py`. The following sections go into further detail about the specific points described in the [Rubric](https://review.udacity.com/#!/rubrics/571/view).
@@ -44,6 +23,7 @@ To run the program with default settings on a video:
 
 The camera calibration data gets saved into `camera_data.npz` by default and is reused in subsequent runs. If you want to change the camera information, delete the file, or specify a different filename using the `-c` command line argument.
 
+---
 ## Camera Calibration and Distortion Correction
 
 The camera calibration code is contained in lines 25-50 in the functions `calibrate_camera` and `camera_setup`. The camera calibration information is cached using `numpy.savez_compressed` in the interest of saving time.
@@ -56,14 +36,13 @@ The two accumulated lists, `imgpoints` and `objpoints` are then passed into `cv2
 
 ## Pipeline (single images)
 
-### Description of Pipeline
-#### 1. Example of Distortion corrected image
+### 1. Example of Distortion corrected image
 
 ![Example of Distortion corrected image][image1]
 
-#### 2. Thresholding
+### 2. Thresholding
 
-Initially a number of combinations of color and gradient thresholds were attempted. It was found that none of these were very robust to changing conditions in lighting and contrast. After reviewing some literature on the subject, it was found that using a second derivative operation (a Laplacian) might be more suited to this purpose. By using a Laplacian operation on the image followed by thresholding it to highlight only the negative values (denoting a dark-bright-dark edge) it was possible to reject many of the false positives [ [Ref](http://www.eng.utah.edu/~hamburge/Road_Marking_Features_and_Processing_Steps.pdf) ]. The Laplacian resulted in better results than using combinations of Sobel gradients.
+Initially a number of combinations of color and gradient thresholds were attempted. It was found that none of these were very robust to changing conditions in lighting and contrast. After reviewing some literature on the subject, it was found that using a second derivative operation (Laplacian) might be more suited to this purpose[1]. By using a Laplacian filter (using `cv2.Laplacian`) on the image followed by thresholding it to highlight only the negative values (denoting a dark-bright-dark edge) it was possible to reject many of the false positives [ [Ref](http://www.eng.utah.edu/~hamburge/Road_Marking_Features_and_Processing_Steps.pdf) ]. The Laplacian resulted in better results than using combinations of Sobel gradients.
 
 The thresholding operations used to detect edges in the images can be found in lines 149-170 of `project_04.py` in the function called `find_edges`. The thresholded binary mask obtained from the Laplacian is named `mask_one` in the code. The thresholding is first performed on the S-channel of the image in HLS colorspace. If too few pixels were detected by this method (less than 1% of total number of pixels), then the Laplacian thresholding is attempted on the grayscale image.
 
@@ -74,9 +53,9 @@ The results obtained using the edge detection algorithm for an image is shown be
 
 ![Thresholding Example][image3]
 
-#### 3. Perspective transform
+### 3. Perspective transform
 
-The perspective transformation is computed using the functions `find_perspective_points` and `get_perspective_transform` in lines 52-147 of `project04.py`. `find_perspective_points` uses the method from [Project 1](project1) to detect lane lines. Since the lanes are approximated as lines, it can be used to extract four points that are actually on the road which can then be used as the "source" points for a perspective transform.
+The perspective transformation is computed using the functions `find_perspective_points` and `get_perspective_transform` in lines 52-147 of `project04.py`. `find_perspective_points` uses the method from [project1][Project 1] to detect lane lines. Since the lanes are approximated as lines, it can be used to extract four points that are actually on the road which can then be used as the "source" points for a perspective transform.
 
 Here is a brief description of how ths works:
 
@@ -92,14 +71,13 @@ The original and warped images along with the source points (computed dynamicall
 
 ![Perspective Transform Example][image4]
 
-<!-- ![Warped, Thresholded Image][image5] -->
-#### 4. Lane Detection
+### 4. Lane Detection
 
 The lane detection was primarily performed using two methods -- histogram method and masking method. The latter only works when we have some prior knowledge about the location of the lane lines. A sanity check based on the radius of curvature of the lanes is used to assess the results of lane detection. If two many frames fail the sanity check, the algorithm reverts to the histogram method until the lane is detected again.
 
 Both methods also use a sanity check which checks if the radius of curvature of the lanes have changed too much from the previous frame. If the sanity check fails, the frame is considered to be a "dropped frame" and the previously calculated lane curve is used. If more than 16 dropped frames are consecutively encountered, the algorithm switches back to the histogram method.
 
-**(a) Histogram Method**
+#### (a) Histogram Method
 
 The first step in this method is to compute the base points of the lanes. This is done in the `histogram_base_points` function in lines 352-366 of `project04.py`. The first step is to compute a histogram of the lower half of the thresholded image. The histogram corresponding to the thresholded, warped image in the previous section is shown below:
 
@@ -113,13 +91,13 @@ The filtered pixels are then passed into the `add_lane_pixels` method of the `La
 
 The polynomial is then used to create an image mask that describes a region of interest which is then used by the masking method in upcoming frames.
 
-**(b) Masking Method**
+#### (b) Masking Method
 
 ![Lane masks][image6]
 
 This is the less computationally expensive procedure that is used when a lane has already been detected before. The previously detected lanes are used to define regions of interest where the lanes are likely to be in (shown in image above). This is implemented in the `detect_from_mask` method defined in lines 276-283. The algorithm uses the mask generated during the histogram method to remove irrelevant pixels and then uses all non-zero pixels found in the region of interest with the `add_lane_pixels` method to compute the polynomial describing the lane.
 
-**(c) Sanity check**
+#### (c) Sanity check
 
 The sanity check is defined in the method `sanity_check_lane` in lines 259-269. It is called by the `add_lane_pixels` method regardless of what method is used to detect the lane pixels. The stored value of the radius of curvature of the lane is used to see if the current radius of curvature has deviated by more than 50% in which case.
 
@@ -129,7 +107,7 @@ The sanity check is defined in the method `sanity_check_lane` in lines 259-269. 
   return self.insanity <= 0.5
 ```
 
-####5. Radius of curvature and vehicle position
+### 5. Radius of curvature and vehicle position
 
 The radius of curvature is computed in the `compute_rad_curv` method of the Lane class in lines 251-257. The pixel values of the lane are scaled into meters using the scaling factors defined as follows:
 ```python
@@ -146,7 +124,9 @@ veh_pos = image.shape[1]//2
 dx = (veh_pos - middle)*xm_per_pix # Positive on right, Negative on left
 ```
 
-#### Summary and Result
+## Summary and Result
+
+### Images
 
 The complete pipeline is defined in the `process_image` function in lines 355-475 that performs all these steps and then draws the lanes as well as the radius and position information on to the frame. The steps in the algorithm are:
 
@@ -155,9 +135,8 @@ The complete pipeline is defined in the `process_image` function in lines 355-47
 An example image that was run through the pipeline is shown below:
 ![Final Image][image7]
 
----
 
-###Pipeline (videos)
+### Videos
 
 **Project video output**
 
@@ -169,17 +148,19 @@ This same video can also be found at:  [project_video_out.mp4](./output/project_
 
 [![Challenge video output](https://img.youtube.com/vi/VM6lMkD-xf4/0.jpg)](https://youtu.be/VM6lMkD-xf4)
 
+The lanes in the harder challenge video were found to be very difficult to track with this pipeline. The algorithm has to be improved and made more robust for that video.
+
 ---
-### Discussion
+## Discussion
 
 The pipeline was able to detect and track the lanes reliably in  the project video. With some tweaks (reversing the warping/edge detection), it also worked well for the challenge video. The main issue with the challenge video was lack of contrast and false lines.
 
-#### (a) Gradient enhancement
-A color image can be converted to grayscale in many ways. The easiest is what is called equal-weight conversion where the red, green and blue values are given equal weights and averaged. However, the ratio between these weights can be modified to enhance the gradient of the edges of interest (such as lanes). According to [Ref2](ref2), grayscale images converted using the ratios 0.5 for red, 0.4 for green, and 0.1 for blue, are better at detecting yellow and white lanes. This method was used for converting images to gray scale in this project.
+### (a) Gradient enhancement
+A color image can be converted to grayscale in many ways. The easiest is what is called equal-weight conversion where the red, green and blue values are given equal weights and averaged. However, the ratio between these weights can be modified to enhance the gradient of the edges of interest (such as lanes). According to Ref.2, grayscale images converted using the ratios 0.5 for red, 0.4 for green, and 0.1 for blue, are better at detecting yellow and white lanes. This method was used for converting images to gray scale in this project.
 
-However, even this method faces problems under different color temperature illuminations, such as evening sun or artificial lighting conditions. A better method that continuously computes the best weighting vector based on prior frames is described in [Ref 2](ref2). This was not implemented in this project due to time constraints, and because reasonable results were obtained for the project and challenge videos without the use of such a method. However, implementing such a method would make the pipeline a lot more robust to change in contrast and illumination.
+However, even this method faces problems under different color temperature illuminations, such as evening sun or artificial lighting conditions. A better method that continuously computes the best weighting vector based on prior frames is described in [2]. This was not implemented in this project due to time constraints, and because reasonable results were obtained for the project and challenge videos without the use of such a method. However, implementing such a method would make the pipeline a lot more robust to change in contrast and illumination.
 
-#### (b) A note on order of operations
+### (b) A note on order of operations
 In the pipeline described in the lectures, the perspective transform was applied after the edges were detected in the image using some thresholding techniques (described in a later section).
 
 The effect of reversing this order, by applying the perspective transform first and then applying the edge detection was also examined. It was found that with the current set of hyper-parameters used for edge detection, the reverse process was able to reject more "distractions" at the cost of a decrease in the number of lane pixels found. This was particularly of interest in some parts of the challenge video. Here is an example of an image where the order of thresholding and warping made a difference:
@@ -188,10 +169,30 @@ The effect of reversing this order, by applying the perspective transform first 
 
 However, the effect wasn't significant enough to merit its use in the final version. The reversed order of operations was also found to remove too many legitimate lane pixels. `challenge_video_out2.mp4` is an example of video output using the reverse order of operations. This option can be enabled by commenting the lines 392-393 and uncommenting lines 396-397. This hack is probably not needed with a better gradient enhancement process.
 
-#### (c) Steerable filters
+### (c) Steerable filters
 
-Steerable filters are convolution kernels that can detect edges oriented at certain angles. This might especially be useful in cases like the harder challenge video where the lane line is practically horizontal in some frames.
+Steerable filters[3] are convolution kernels that can detect edges oriented at certain angles. This might especially be useful in cases like the harder challenge video where the lane line is practically horizontal in some frames.
 
-#### (d) Different types of curve fits
+### (d) Different types of curve fits
 
 Euler spirals, also known as clothoids, are parametric curves whose curvature changes linearly with the independent variable. They are frequently used in highway engineering to design connecting roads, on and off ramps etc. These might be a better candidate curve to fit to the lane pixels rather than simple second order polynomials.
+
+## References
+
+[1] Juneja, M., & Sandhu, P. S. (2009). [Performance evaluation of edge detection techniques for images in spatial domain.](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.457.535&rep=rep1&type=pdf) International Journal of Computer Theory and Engineering, 1(5), 614.
+
+[2] Yoo, H., Yang, U., & Sohn, K. (2013). [Gradient-enhancing conversion for illumination-robust lane detection.](https://pdfs.semanticscholar.org/2bce/94e1f0d921d6876cf346103f5f3e121bfdd8.pdf) IEEE Transactions on Intelligent Transportation Systems, 14(3), 1083-1094.
+
+[3] McCall, J. C., & Trivedi, M. M. (2006). [Video-based lane estimation and tracking for driver assistance: survey, system, and evaluation.](http://escholarship.org/uc/item/1bg5f8qd) IEEE transactions on intelligent transportation systems, 7(1), 20-37.
+
+[//]: # (References)
+
+[image1]: ./figures/fig1_undistort.png "Original and Undistorted images"
+[image2]: ./figures/fig2_warp_options.png "Warp options"
+[image3]: ./figures/fig3_edges.png "Thresholded Image"
+[image4]: ./figures/fig4_perspective.png "Warp Example"
+[image5]: ./figures/fig5_hist.png "Histogram"
+[image6]: ./figures/fig6_masks.png "Lane masks"
+[image7]: ./figures/fig7_result.png "Output"
+[video1]: ./project_video_out.mp4 "Project video output"
+[video2]: ./challenge_video_out2.mp4 "Challenge video output"
