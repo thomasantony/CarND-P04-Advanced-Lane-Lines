@@ -156,7 +156,7 @@ def find_edges(image, mask_half=False):
     total_px = image.shape[0]*image.shape[1]
     laplacian = cv2.Laplacian(gray, cv2.CV_32F, ksize=21)
     mask_one = (laplacian < 0.15*np.min(laplacian)).astype(np.uint8)
-    if cv2.countNonZero(mask_three)/total_px < 0.01:
+    if cv2.countNonZero(mask_one)/total_px < 0.01:
         laplacian = cv2.Laplacian(gray, cv2.CV_32F, ksize=21)
         mask_one = (laplacian < 0.075*np.min(laplacian)).astype(np.uint8)
 
@@ -166,10 +166,6 @@ def find_edges(image, mask_half=False):
 
     combined_binary = np.clip(cv2.bitwise_and(gray_binary,
                         cv2.bitwise_or(mask_one, mask_two)), 0, 1).astype('uint8')
-
-    # # Mask out top half of image to reduce distractions
-    # if mask_half:
-    #     combined_binary[:image.shape[0]//2] = 0
 
     return combined_binary
 
@@ -191,13 +187,8 @@ class Lane():
         #distance in meters of vehicle center from the line
         self.insanity = 0.0
 
-        #x values for detected line pixels
-        self.allx = None
-        #y values for detected line pixels
-        self.ally = None
-
         self.current_xfit = None
-        
+
         self.img_size = img_size
         self.base_pt = base_pt
 
@@ -207,6 +198,9 @@ class Lane():
         self.dropped_frames = 0
 
     def add_lane_pixels(self, x, y):
+        """
+        Adds lane pixels and recomputes curve-fit.
+        """
         # Use all pixels from previous detections for curve fit
         weights = np.ones(len(self.recent_xfitted))
         if len(weights) > 1:
@@ -233,10 +227,6 @@ class Lane():
 
             self.current_xfit = x_fit   # For drawing
 
-            # Save current detected pixels
-            self.allx = np.array(x)
-            self.ally = np.array(y)
-
             self.recent_xfitted.append(x_fit)
             self.recent_yfitted.append(self.yvals)
 
@@ -257,6 +247,7 @@ class Lane():
         pts = np.transpose(np.vstack([x_fit, self.yvals])).reshape((-1,1,2)).astype(np.int32)
         cv2.drawContours(self.mask, pts, -1, (255,255,255), thickness=80)
 
+
     @staticmethod
     def compute_rad_curv(xvals, yvals):
         fit_cr = np.polyfit(yvals*ym_per_pix, xvals*xm_per_pix, 2)
@@ -274,11 +265,7 @@ class Lane():
         if self.radius_of_curvature is None:
             return True
 
-        k = 1/R   # Curvature is a better measure to track
         R0 = self.radius_of_curvature
-        k0 = 1/self.radius_of_curvature
-#         return abs(k-k0)/k0 <= 0.05
-#         self.insanity = abs(k-k0)/k0
         self.insanity = abs(R-R0)/R0
         return self.insanity <= 0.5  # Max change from frame to frame is 200%
 
@@ -309,7 +296,7 @@ def reject_outliers(x_list, y_list):
                                  if abs(x - mu_x) < 2*sig_x and abs(y - mu_y) < 2*sig_y])
     return new_x, new_y
 
-def histogram_lane_detection(image, left_lane, right_lane, base_pts, num_bands = 10, window_width = 0.2):
+def sliding_window(image, left_lane, right_lane, base_pts, num_bands = 10, window_width = 0.2):
     """Uses histogram and sliding window to detect lanes from scratch"""
 
     height = image.shape[0]
@@ -349,7 +336,7 @@ def histogram_lane_detection(image, left_lane, right_lane, base_pts, num_bands =
 
     return left_lane, right_lane
 
-def find_base_points(lanes, min_peak = 25.0):
+def histogram_base_points(lanes, min_peak = 25.0):
     """Uses histogram to find possible base points for lane lines"""
     hist = np.sum(lanes[int(lanes.shape[0]*0.5):,:], axis=0)
 
@@ -402,14 +389,16 @@ def process_image(image, key_frame_interval=20, cache_length=10):
     else:
         warp_m, warp_minv = cache['warp_m'], cache['warp_minv']
 
-    # warp_img = cv2.warpPerspective(undist, warp_m, (image.shape[1], image.shape[0]), flags=cv2.INTER_LINEAR)
-    # warp_edges = find_edges(warp_img)
     edges = find_edges(undist)
     warp_edges = cv2.warpPerspective(edges, warp_m, (image.shape[1], image.shape[0]), flags=cv2.INTER_LINEAR)
 
+    # Reverse pipeline (warp before thresholding)
+    # warp_img = cv2.warpPerspective(undist, warp_m, (image.shape[1], image.shape[0]), flags=cv2.INTER_LINEAR)
+    # warp_edges = find_edges(warp_img)
+
     base_pts = cache['base_pts']
     if base_pts is None: #or cache['frame_ctr'] % key_frame_interval == 0:
-        new_base_pts = find_base_points(warp_edges)
+        new_base_pts = histogram_base_points(warp_edges)
 
         if new_base_pts is not None:
             base_pts = new_base_pts
@@ -424,7 +413,7 @@ def process_image(image, key_frame_interval=20, cache_length=10):
         # Detect from scratch
         left_lane.radius_of_curvature = None
         right_lane.radius_of_curvature = None
-        histogram_lane_detection(warp_edges, left_lane, right_lane, base_pts)
+        sliding_window(warp_edges, left_lane, right_lane, base_pts)
     else:
         left_lane.detect_from_mask(warp_edges)
         right_lane.detect_from_mask(warp_edges)
@@ -451,6 +440,12 @@ def process_image(image, key_frame_interval=20, cache_length=10):
     # Draw the lane onto the warped blank image
     cv2.fillPoly(color_warp, np.int_([pts]), (0,255, 0))
 
+    # Draw lane markers
+    pts = np.transpose(np.vstack([left_lane.current_xfit, left_lane.yvals])).reshape((-1,1,2)).astype(np.int32)
+    cv2.drawContours(color_warp, pts, -1, (255,0,0), thickness=30)
+    pts = np.transpose(np.vstack([right_lane.current_xfit, right_lane.yvals])).reshape((-1,1,2)).astype(np.int32)
+    cv2.drawContours(color_warp, pts, -1, (0,0,255), thickness=30)
+
     # Warp the blank back to original image space using inverse perspective matrix (Minv)
     newwarp = cv2.warpPerspective(color_warp, warp_minv, (image.shape[1], image.shape[0]))
 
@@ -467,7 +462,7 @@ def process_image(image, key_frame_interval=20, cache_length=10):
     font = cv2.FONT_HERSHEY_SIMPLEX
     cv2.putText(result,'Left radius of curvature  = %.2f m'%(left_r),(50,50), font, 1,(255,255,255),2,cv2.LINE_AA)
     cv2.putText(result,'Right radius of curvature = %.2f m'%(right_r),(50,80), font, 1,(255,255,255),2,cv2.LINE_AA)
-    cv2.putText(result,'Deviation = %.2f m %s of center'%(abs(dx), 'left' if dx < 0 else 'right'),(50,110),
+    cv2.putText(result,'Vehicle position : %.2f m %s of center'%(abs(dx), 'left' if dx < 0 else 'right'),(50,110),
                         font, 1,(255,255,255),2,cv2.LINE_AA)
 
     is_tracking = left_lane.detected or right_lane.detected
