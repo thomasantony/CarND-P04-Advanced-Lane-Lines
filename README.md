@@ -48,7 +48,7 @@ The camera calibration data gets saved into `camera_data.npz` by default and is 
 
 The camera calibration code is contained in lines 25-50 in the functions `calibrate_camera` and `camera_setup`. The camera calibration information is cached using `numpy.savez_compressed` in the interest of saving time.
 
-The chessboard pattern calibration images contained 9 and 6 corners in the horizontal and vertical directions, respectively. First, a list of "object points", which are the (x, y, z) coordinates of these  chessboard corners in the real-world in 3D space, is compiled. The chessboard is assumed to be in the plane z=0, with the top-left corner at the origin. There is assumed to be unit spacing between the corners. These coordinates are stored in the array `objp`.
+The chessboard pattern calibration images (in the `cal_images` folder) contain 9 and 6 corners in the horizontal and vertical directions, respectively. First, a list of "object points", which are the (x, y, z) coordinates of these  chessboard corners in the real-world in 3D space, is compiled. The chessboard is assumed to be in the plane z=0, with the top-left corner at the origin. There is assumed to be unit spacing between the corners. These coordinates are stored in the array `objp`.
 
 For each calibration image, the image coordinates (x,y), of the chessboard corners are computed using the `cv2.findChessboardCorners` function. These are appended to the `imgpoints` array and the `objp` array is appended to the `objpoints` array.
 
@@ -65,7 +65,7 @@ The two accumulated lists, `imgpoints` and `objpoints` are then passed into `cv2
 
 Initially a number of combinations of color and gradient thresholds were attempted. It was found that none of these were very robust to changing conditions in lighting and contrast. After reviewing some literature on the subject, it was found that using a second derivative operation (a Laplacian) might be more suited to this purpose. By using a Laplacian operation on the image followed by thresholding it to highlight only the negative values (denoting a dark-bright-dark edge) it was possible to reject many of the false positives [ [Ref](http://www.eng.utah.edu/~hamburge/Road_Marking_Features_and_Processing_Steps.pdf) ]. The Laplacian resulted in better results than using combinations of Sobel gradients.
 
-The thresholding operations used to detect edges in the images can be found in lines 149-170 of `project_04.py` in the function called `find_edges`. The thresholded binary mask obtained from the Laplacian is named `mask_one` in the code. It is first computed for the S-channel of the image in HLS colorspace. If too few pixels were detected by this method (less than 1% of total number of pixels), then the laplacian thresholding is attempted on the grayscale image.
+The thresholding operations used to detect edges in the images can be found in lines 149-170 of `project_04.py` in the function called `find_edges`. The thresholded binary mask obtained from the Laplacian is named `mask_one` in the code. The thresholding is first performed on the S-channel of the image in HLS colorspace. If too few pixels were detected by this method (less than 1% of total number of pixels), then the Laplacian thresholding is attempted on the grayscale image.
 
 The second thresholded mask, `mask_two`, is created using a simple threshold on the S-channel. And finally, a brightness mask (`gray_binary`) is used to reject any darker lines in the final result. These masks are combined as:
 `combined_mask = gray_binary AND (mask_one OR mask_two)`
@@ -88,7 +88,7 @@ Here is a brief description of how ths works:
 
 *Note: In case the hough transform fails to detect the lane markers, a hardcoded set of source points are used*
 
-The following image shows the original and warped images along with the source points (computed dynamically) and destination points used to computed the perspective transform.
+The original and warped images along with the source points (computed dynamically) and destination points used to computed the perspective transform, are shown below:
 
 ![Perspective Transform Example][image4]
 
@@ -97,7 +97,7 @@ The following image shows the original and warped images along with the source p
 
 The lane detection was primarily performed using two methods -- histogram method and masking method. The latter only works when we have some prior knowledge about the location of the lane lines. A sanity check based on the radius of curvature of the lanes is used to assess the results of lane detection. If two many frames fail the sanity check, the algorithm reverts to the histogram method until the lane is detected again.
 
-Both methods also use a sanity check which checks if the radius of curvature of the lanes have changed too much from the previous frame. If the sanity check fails, the frame is considered a "dropped frame" and the previously calculated lane curve is used. If more than 16 dropped frames are consecutively encountered, the algorithm switches back to the histogram method.
+Both methods also use a sanity check which checks if the radius of curvature of the lanes have changed too much from the previous frame. If the sanity check fails, the frame is considered to be a "dropped frame" and the previously calculated lane curve is used. If more than 16 dropped frames are consecutively encountered, the algorithm switches back to the histogram method.
 
 **(a) Histogram Method**
 
@@ -107,7 +107,7 @@ The first step in this method is to compute the base points of the lanes. This i
 
 The `find_peaks_cwt` function from the `scipy.signal` is used to identify the peaks in the histogram. The indices thus obtained are further filtered to reject any below a certain minimum value as well as any peaks very close to the edges of the image. For the histogram shown above, the base points for the lanes are found to be at the points `297` and `1000`.
 
-Once the base points are found, a sliding window method is used to extract the lane pixels. This can be seen in the `sliding_window` function in lines 308-346. The algorithm splits the image into a number of horizontal bands (10 by default). Starting at the lowest band, it then considers a window of a fixed width (20% of image width) centered at both base points. It then the x and y coordinates of all the nonzero pixels in these windows into separate lists. The base point for the next band is assumed to be the column with the maximum number of pixels in the current band. After all the points are accumulated, the function `reject_outliers` is used to remove any points whose x or y coordinates are outside of two standard deviations from the mean value. This helps remove irrelevant pixels from the data.
+Once the base points are found, a sliding window method is used to extract the lane pixels. This can be seen in the `sliding_window` function in lines 308-346. The algorithm splits the image into a number of horizontal bands (10 by default). Starting at the lowest band, a window of a fixed width (20% of image width) centered at both base points is considered. The x and y coordinates of all the nonzero pixels in these windows are compiled into into separate lists. The base point for the next band is assumed to be the column with the maximum number of pixels in the current band. After all the points are accumulated, the function `reject_outliers` is used to remove any points whose x or y coordinates are outside of two standard deviations from the mean value. This helps remove irrelevant pixels from the data.
 
 The filtered pixels are then passed into the `add_lane_pixels` method of the `Lane` class defined in lines 200-248. These pixels, along with a weighted average of prior lane pixels are used with `np.polyfit` to compute a second order polynomial that fits the points.
 
@@ -120,7 +120,8 @@ The polynomial is then used to create an image mask that describes a region of i
 This is the less computationally expensive procedure that is used when a lane has already been detected before. The previously detected lanes are used to define regions of interest where the lanes are likely to be in (shown in image above). This is implemented in the `detect_from_mask` method defined in lines 276-283. The algorithm uses the mask generated during the histogram method to remove irrelevant pixels and then uses all non-zero pixels found in the region of interest with the `add_lane_pixels` method to compute the polynomial describing the lane.
 
 **(c) Sanity check**
-The sanity check code is called by the `add_lane_pixels` method regardless of what method is used to detect the lane pixels. It is defined in the method `sanity_check_lane` in lines 259-269. It uses the stored value of the radius of curvature of the lane to see if the current radius of curvature has deviated by more than 50% in which case.
+
+The sanity check is defined in the method `sanity_check_lane` in lines 259-269. It is called by the `add_lane_pixels` method regardless of what method is used to detect the lane pixels. The stored value of the radius of curvature of the lane is used to see if the current radius of curvature has deviated by more than 50% in which case.
 
 ```python
   R0 = self.radius_of_curvature
@@ -130,14 +131,14 @@ The sanity check code is called by the `add_lane_pixels` method regardless of wh
 
 ####5. Radius of curvature and vehicle position
 
-The radius of curvature is computed in the `compute_rad_curv` method of the Lane class in lines 251-257. It scales the pixel values of the lane into meters using the scaling factors defined as follows:
+The radius of curvature is computed in the `compute_rad_curv` method of the Lane class in lines 251-257. The pixel values of the lane are scaled into meters using the scaling factors defined as follows:
 ```python
 ym_per_pix = 30/720 # meters per pixel in y dimension
 xm_per_pix = 3.7/700 # meteres per pixel in x dimension
 ```
 These values are then used to compute the polynomial coefficients in meters and then the formula given in the lectures is used to compute the radius of curvature.
 
-The position of the vehicle is computed by the code in lines 455-456. It assumes that the camera is centered in the vehicle and checks how far the midpoint of the two lanes is from the center of the image.
+The position of the vehicle is computed by the code in lines 455-456. The camera is assumed to be centered in the vehicle and checks how far the midpoint of the two lanes is from the center of the image.
 
 ```python
 middle = (left_fitx[-1] + right_fitx[-1])//2
@@ -159,17 +160,19 @@ An example image that was run through the pipeline is shown below:
 ###Pipeline (videos)
 
 **Project video output**
+
 [![Project video output](https://img.youtube.com/vi/eDM08Wp21ng/0.jpg)](https://youtu.be/eDM08Wp21ng)
 
 This same video can also be found at:  [project_video_out.mp4](./output/project_video_out.mp4)
 
 **Challenge video output**
+
 [![Challenge video output](https://img.youtube.com/vi/VM6lMkD-xf4/0.jpg)](https://youtu.be/VM6lMkD-xf4)
 
 ---
 ### Discussion
 
-The pipeline worked fine for the project video. With some tweaks (reversing the warping/edge detection), it also worked fine for the challenge video. The main issue with the challenge video was lack of contrast and false lines.
+The pipeline was able to detect and track the lanes reliably in  the project video. With some tweaks (reversing the warping/edge detection), it also worked well for the challenge video. The main issue with the challenge video was lack of contrast and false lines.
 
 #### (a) Gradient enhancement
 A color image can be converted to grayscale in many ways. The easiest is what is called equal-weight conversion where the red, green and blue values are given equal weights and averaged. However, the ratio between these weights can be modified to enhance the gradient of the edges of interest (such as lanes). According to [Ref2](ref2), grayscale images converted using the ratios 0.5 for red, 0.4 for green, and 0.1 for blue, are better at detecting yellow and white lanes. This method was used for converting images to gray scale in this project.
@@ -183,7 +186,7 @@ The effect of reversing this order, by applying the perspective transform first 
 
 ![Effect of order of operations][image2]
 
-However, the effect wasn't significant enough to merit it's use in the final version as it removed too many lane pixels. `challenge_video_out2.mp4` is an example of video output using the reverse order of operations. This option can be enabled by commenting the lines 392-393 and uncommenting lines 396-397. This hack is probably not needed with a better gradient enhancement process.
+However, the effect wasn't significant enough to merit its use in the final version. The reversed order of operations was also found to remove too many legitimate lane pixels. `challenge_video_out2.mp4` is an example of video output using the reverse order of operations. This option can be enabled by commenting the lines 392-393 and uncommenting lines 396-397. This hack is probably not needed with a better gradient enhancement process.
 
 #### (c) Steerable filters
 
