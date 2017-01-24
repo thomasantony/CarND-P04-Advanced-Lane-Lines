@@ -26,17 +26,40 @@ The camera calibration data gets saved into `camera_data.npz` by default and is 
 ---
 ## Camera Calibration and Distortion Correction
 
-The camera calibration code is contained in lines 25-50 in the functions `calibrate_camera` and `camera_setup`. The camera calibration information is cached using `numpy.savez_compressed` in the interest of saving time.
 
-The chessboard pattern calibration images (in the `cal_images` folder) contain 9 and 6 corners in the horizontal and vertical directions, respectively. First, a list of "object points", which are the (x, y, z) coordinates of these  chessboard corners in the real-world in 3D space, is compiled. The chessboard is assumed to be in the plane z=0, with the top-left corner at the origin. There is assumed to be unit spacing between the corners. These coordinates are stored in the array `objp`.
+The camera calibration code is contained in lines 25-50 in the functions `calibrate_camera` and `camera_setup`. The camera calibration information is cached using `numpy.savez_compressed` in the interest of saving time. The calibration is performed using chessboard pattern images taken using the same camera as the project videos, such as the one shown below:
+
+![chessboard pattern](./camera_cal/calibration1.jpg)
+
+The chessboard pattern calibration images (in the `cal_images` folder) contain 9 and 6 corners in the horizontal and vertical directions, respectively (as shown above). First, a list of "object points", which are the (x, y, z) coordinates of these  chessboard corners in the real-world in 3D space, is compiled. The chessboard is assumed to be in the plane z=0, with the top-left corner at the origin. There is assumed to be unit spacing between the corners. These coordinates are stored in the array `objp`.
+
+```python
+  # cal_images contains names of calibration image files
+  for fname in cal_images:
+      img = cv2.imread(fname)
+      gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+      ret, corners = cv2.findChessboardCorners(gray, (nx, ny), None)
+      if ret == True:
+          objpoints.append(objp)
+          imgpoints.append(corners)
+
+  ret, cam_mtx, cam_dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)
+```
 
 For each calibration image, the image coordinates (x,y), of the chessboard corners are computed using the `cv2.findChessboardCorners` function. These are appended to the `imgpoints` array and the `objp` array is appended to the `objpoints` array.
 
-The two accumulated lists, `imgpoints` and `objpoints` are then passed into `cv2.calibrateCamera` to obtain the camera calibration and distortion coefficients. The input image is then undistorted (later in the image processing pipeline on line 409) using these coefficients and the `cv2.undistort` function.
+The two accumulated lists, `imgpoints` and `objpoints` are then passed into `cv2.calibrateCamera` to obtain the camera calibration and distortion coefficients as shown in the above code block. The input image is then undistorted (later in the image processing pipeline on line 409) using these coefficients and the `cv2.undistort` function.
 
 ## Pipeline (single images)
 
 ### 1. Example of Distortion corrected image
+
+The image from the camera is undistorted using the camera calibration matrix and distortion coefficients computed in the previous step. This is done using the `cv2.undistort` function as shown below:
+
+`undist = cv2.undistort(image, cam_mtx, cam_dist, None, cam_mtx)`
+
+An example of an image before and after the distortion correction procedure is shown below.
 
 ![Example of Distortion corrected image][image1]
 

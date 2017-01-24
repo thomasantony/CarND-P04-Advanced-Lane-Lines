@@ -29,7 +29,6 @@ def calibrate_camera(cal_images, nx, ny):
     objp = np.zeros((nx*ny,3), np.float32)
     objp[:,:2] = np.mgrid[0:nx,0:ny].T.reshape(-1, 2)
 
-    fname = cal_images[0]
     for fname in cal_images:
         img = cv2.imread(fname)
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
